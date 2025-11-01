@@ -1,0 +1,174 @@
+import time
+# Import piper_sdk module
+from piper_sdk import *
+
+if __name__ == "__main__":
+    # Instantiate interface, the default parameters of the parameters are as follows
+    #   can_name(str): can port name
+    #   judge_flag(bool): Whether to enable the can module when creating this instance.
+    #                     If you use an unofficial module, please set it to False
+    #   can_auto_init(bool): Whether to automatically initialize to open the can bus when creating this instance.
+    #                        If set to False, please set the can_init parameter to True in the ConnectPort parameter
+    #   dh_is_offset([0,1] -> default 0x01): Whether the dh parameter used is the new version of dh or the old version of dh.
+    #                                       The old version is before S-V1.6-3, and the new version is after S-V1.6-3 firmware
+    #           0 -> old
+    #           1 -> new
+    #   start_sdk_joint_limit(bool -> False): Whether to enable SDK joint angle limit, which will limit both feedback and control messages
+    #   start_sdk_gripper_limit(bool -> False): Whether to enable SDK gripper position limit, which will limit both feedback and control messages
+    #   logger_level(LogLevel -> default LogLevel.WARNING): Set the log level
+    #         The following parameters are optional:
+    #               LogLevel.DEBUG
+    #               LogLevel.INFO
+    #               LogLevel.WARNING
+    #               LogLevel.ERROR
+    #               LogLevel.CRITICAL
+    #               LogLevel.SILENT
+    #   log_to_file(bool -> default False): Whether to enable the log writing function, True to enable, default to disable
+    #   log_file_path(str -> default False): Set the path to write the log file, the default is the log folder under the sdk path
+    piper = C_PiperInterface(can_name="can0",
+                                judge_flag=False,
+                                can_auto_init=True,
+                                dh_is_offset=1,
+                                start_sdk_joint_limit=False,
+                                start_sdk_gripper_limit=False,
+                                logger_level=LogLevel.WARNING,
+                                log_to_file=False,
+                                log_file_path=None)
+    # Enable can send and receive threads
+    piper.ConnectPort()
+    # Loop and print messages. Note that the first frame of all messages is the default value. For example, the message content of the first frame of the joint angle message defaults to 0
+    while True:
+        
+
+
+
+        def move_end_from_to(end_pose):
+            """
+
+            """
+            # 1. 初始化机械臂
+            arm = piper
+            print("机械臂初始化完成")
+
+            try:
+
+
+                # 3. 使能机械臂（启动电机）
+                if not arm.EnablePiper():
+                    print("机械臂使能失败，检查供电和急停按钮")
+                    return
+                print("机械臂使能成功")
+
+
+                print(arm.GetArmEndPoseMsgs())
+                time.sleep(2)
+
+                arm.ModeCtrl(
+                    ctrl_mode=0x01,  # 必须为CAN控制模式，否则末端指令无效
+                    move_mode=0x01,  # MOVE P模式：点到点运动（最快路径）
+                    move_spd_rate_ctrl=30  # 运动速度20%（0-100，新手建议低速）
+                )
+                time.sleep(3)  # 等待模式切换生效（关键！模式未生效会导致无反应）
+                arm.JointCtrl(0, 0, 0, 0, 0, 0)
+                time.sleep(3)
+                arm.JointCtrl(30000,20000,-20000,30000,20000,10000)
+                time.sleep(2)
+                arm.JointCtrl(0,0,0,0,0,0)
+                time.sleep(2)
+
+                arm.ModeCtrl(
+                    ctrl_mode=0x01,  # 必须为CAN控制模式，否则末端指令无效
+                    move_mode=0x00,  # MOVE P模式：点到点运动（最快路径）
+                    move_spd_rate_ctrl=20  # 运动速度20%（0-100，新手建议低速）
+                )
+                time.sleep(3)  # 等待模式切换生效（关键！模式未生效会导致无反应）
+
+                arm.EndPoseCtrl(X=end_pose[0], Y=end_pose[1], Z=end_pose[2],
+                    RX=end_pose[3], RY=end_pose[4], RZ=end_pose[5])
+                time.sleep(4)
+
+
+
+                # 4. 设置控制模式：CAN模式 + 末端点位模式（MOVE P）
+                # 库函数中：ctrl_mode=0x01（CAN控制），move_mode=0x00（MOVE P点到点）
+                arm.ModeCtrl(
+                    ctrl_mode=0x01,  # 必须为CAN控制模式，否则末端指令无效
+                    move_mode=0x02,  # MOVE P模式：点到点运动（最快路径）
+                    move_spd_rate_ctrl=20  # 运动速度20%（0-100，新手建议低速）
+                )
+                time.sleep(3)  # 等待模式切换生效（关键！模式未生效会导致无反应）
+                print("模式设置完成：CAN控制 + 末端点位运动模式")
+
+
+
+
+                # 5. 从起点移动到终点
+
+
+                print("末端已从起点移动到终点")
+                arm.EndPoseCtrl(-180707,253984,31758,176745, -915, -86345)
+                time.sleep(2)
+                arm.EndPoseCtrl(-236854,299818,31758,176745, -915, -86345)
+                time.sleep(2)
+                arm.EndPoseCtrl(-296287,182177,31758,176745,-915,-61221)
+                time.sleep(2)
+                print(f"从起点移动到终点：X={end_pose[0] / 1000}mm, Y={end_pose[1] / 1000}mm, Z={end_pose[2] / 1000}mm")
+                arm.EndPoseCtrl(
+                    X=end_pose[0], Y=end_pose[1], Z=end_pose[2],
+                    RX=end_pose[3], RY=end_pose[4], RZ=end_pose[5]
+                )
+                # 等待到达终点
+
+                time.sleep(4.5)
+                arm.ModeCtrl(
+                    ctrl_mode=0x01,  # 必须为CAN控制模式，否则末端指令无效
+                    move_mode=0x03,  # MOVE C模式：点到点运动（最快路径）
+                    move_spd_rate_ctrl=20  # 运动速度20%（0-100，新手建议低速）
+                )
+                time.sleep(3)
+                arm.EndPoseCtrl(
+                    X=end_pose[0], Y=end_pose[1], Z=end_pose[2],
+                    RX=end_pose[3], RY=end_pose[4], RZ=end_pose[5]
+                )
+                arm.MoveCAxisUpdateCtrl(0x01)
+                time.sleep(1)
+                arm.EndPoseCtrl(-135283, 308163, 31758, 176745, -915, -86345)
+                arm.MoveCAxisUpdateCtrl(0x02)
+                time.sleep(1)
+                arm.EndPoseCtrl(-180707, 253984, 31758, 176745, -915, -61221)
+                arm.MoveCAxisUpdateCtrl(0x03)
+                time.sleep(3.5)
+
+                arm.EndPoseCtrl(-180707, 253984, 31758, 176745, -915, -61221)
+                arm.MoveCAxisUpdateCtrl(0x01)
+                time.sleep(1)
+                arm.EndPoseCtrl(-208021,186994,31758,176745,-915,-61221)
+                arm.MoveCAxisUpdateCtrl(0x02)
+                time.sleep(1)
+                arm.EndPoseCtrl(
+                    -296287,182177,31758,176745,-915,-61221
+                )
+                arm.MoveCAxisUpdateCtrl(0x03)
+                time.sleep(3.5)
+
+
+            finally:
+
+
+                time.sleep(10)
+                print("机械臂已失能，程序结束")
+
+
+        if __name__ == "__main__":
+            # --------------------------
+            # 请根据你的需求修改以下参数
+            # --------------------------
+            # 起点位姿：(X, Y, Z, RX, RY, RZ)
+            # 单位：X/Y/Z为0.001mm（如100000 = 100mm）；RX/RY/RZ为0.001度（如0 = 0度）
+          # 示例：X=100mm, Y=0, Z=200mm, 姿态水平
+
+            # 终点位姿：同上
+            end_pose = (-53044, 298102, 31758, 176745, -915, -86313)
+
+            # 执行移动
+            move_end_from_to(end_pose)
